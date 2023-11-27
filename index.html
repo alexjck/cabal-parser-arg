@@ -1,0 +1,205 @@
+<html>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.7.570/build/pdf.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.13.1/xlsx.full.min.js"></script> 
+<style type="text/css">
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+.container {
+  height: 100vh;
+  width: 100%;
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  background-color: #fcfcfc;
+}
+
+.card {
+  border-radius: 10px;
+  box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0.3);
+  width: 600px;
+  height: 260px;
+  background-color: #ffffff;
+  padding: 10px 30px 40px;
+}
+
+.card h3 {
+  font-size: 22px;
+  font-weight: 600;
+  
+}
+
+.drop_box {
+  margin: 10px 0;
+  padding: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  border: 3px dotted #a3a3a3;
+  border-radius: 5px;
+}
+
+.drop_box h4 {
+  font-size: 16px;
+  font-weight: 400;
+  color: #2e2e2e;
+}
+
+.drop_box p {
+  margin-top: 10px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: #a3a3a3;
+}
+
+.btn {
+  text-decoration: none;
+  background-color: #005af0;
+  color: #ffffff;
+  padding: 10px 20px;
+  border: none;
+  outline: none;
+  transition: 0.3s;
+}
+
+.btn:hover{
+  text-decoration: none;
+  background-color: #ffffff;
+  color: #005af0;
+  padding: 10px 20px;
+  border: none;
+  outline: 1px solid #010101;
+}
+.form input {
+  margin: 10px 0;
+  width: 100%;
+  background-color: #e2e2e2;
+  border: none;
+  outline: none;
+  padding: 12px 20px;
+  border-radius: 4px;
+}
+</style>
+<body>
+<div class="container">
+  <div class="card">
+    <h3>Cabal Credit Card Resume Parser</h3>
+    <div class="drop_box">
+      <header>
+        <h4>Select File here</h4>
+      </header>
+      <p>Files Supported: PDF</p>
+      <input type="file" hidden accept=".pdf" id="fileID">
+      <button class="btn">Choose File</button>
+    </div>
+  </div>
+</div>
+<script>
+
+  function parseCabalResume(data) {
+    var array = data.split("\n")
+    var re_tot_fec_pago = /^TOT. FEC. PAGO: [0-9]{2}\/[0-9]{2}\/[0-9]{4}\s{2,}([\w\s\+\.\/]+)\s{2,}\d+\s{2,}([0-9,]+)$/
+    var re_wo_percent = /^\s{2,}([\w\s\+\.\/]+)\s{2,}([0-9,]+)−?$/
+    var re_with_percent = /^\s{2,}([\w\s\+\.\/]+)\s{2,}[0-9,]+%\s{2,}[0-9,]+\s{2,}([0-9,]+)−?$/
+    var inside_total_fecha_pago = false
+    var response_array = []
+    var temp_obj = {}
+    for(i in array) {
+      let match = array[i].match(re_tot_fec_pago)
+      if (match) {
+        inside_total_fecha_pago = true
+        temp_obj[match[1].trim()] = match[2].trim()
+      } else if (inside_total_fecha_pago) {
+        match = array[i].match(re_wo_percent)
+        if (match) {
+          temp_obj[match[1].trim()] = match[2].trim()
+          if (match[0].includes("IMPORTE NETO FINAL A LIQUIDAR")) {
+            response_array.push(temp_obj)
+            inside_total_fecha_pago = false
+            temp_obj = {}
+          }
+        } else {
+          match = array[i].match(re_with_percent)
+          if (match) {
+            temp_obj[match[1].trim()] = match[2].trim()
+          }
+        }
+      }
+    }
+
+    var sum_total = {}
+    for(i in response_array) {
+      let object = response_array[i]
+      for(var key in object) {
+        if (sum_total[key]) {
+          sum_total[key] = (parseFloat(sum_total[key]) + parseFloat(object[key].replace(",","."))).toFixed(2)
+        } else {
+          sum_total[key] = parseFloat(object[key].replace(",",".")).toFixed(2)
+        }
+      }
+    }
+    response_array.push({})
+    response_array.push(sum_total)
+
+    if ( response_array.length != 0 ) {
+      return response_array;
+    } else {
+      return "";
+    }
+  }
+
+  dropArea = document.querySelector(".drop_box");
+  button = dropArea.querySelector("button");
+  dragText = dropArea.querySelector("header");
+  input = dropArea.querySelector("input");
+
+  button.onclick = () => {
+    input.click();
+  };
+
+  input.addEventListener("change", function (e) {
+    var fileReader = new FileReader();
+
+    fileReader.onload = function (data) {
+      uintData = new Uint8Array(data.target.result);
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@2.7.570/build/pdf.worker.min.js";
+      pdfjsLib.getDocument({data: uintData}).promise.then(pdf => {
+        var pages = [];
+        for (var i = 0; i < pdf.numPages; i++) {
+            pages.push(i);
+        }
+
+        Promise.all(pages.map(function(pageNumber) {
+            return pdf.getPage(pageNumber + 1).then(function(page) {
+                return page.getTextContent().then(function(textContent) {
+                    return textContent.items.map(function(item) {
+                        return item.str;
+                    }).join('\n');
+                });
+            });
+        })).then(function(pages) {
+
+          pdfText = pages.join("\n");
+          result = parseCabalResume(pdfText);
+          excelFileName = e.target.files[0].name.replace("pdf", "xlsx");
+          var ws = XLSX.utils.json_to_sheet(result);
+          var wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Data");
+          XLSX.writeFile(wb, excelFileName)
+        });
+      });
+    };
+
+    fileReader.readAsArrayBuffer(e.target.files[0]);
+  });
+</script>
+</body>
+</html>
